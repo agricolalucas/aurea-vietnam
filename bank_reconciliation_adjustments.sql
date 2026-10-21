@@ -51,7 +51,7 @@ begin
  elsif p_action='import' then
   if exists(select 1 from public.vietnam_bank_statements where id=op and bank_id=bid) then return jsonb_build_object('already_saved',true);end if;
   if exists(select 1 from public.vietnam_bank_statements where bank_id=bid and file_sha256=p_data->>'file_sha256' and sheet_name=p_data->>'sheet_name') then raise exception 'This original statement file was already imported';end if;
-  if not exists(select 1 from storage.objects where bucket_id='india-bank-statements' and name=p_data->>'storage_path' and (storage.foldername(name))[1]=u::text) then raise exception 'Original file must be uploaded before import';end if;
+  if not exists(select 1 from storage.objects where bucket_id='vietnam-bank-statements' and name=p_data->>'storage_path' and (storage.foldername(name))[1]=u::text) then raise exception 'Original file must be uploaded before import';end if;
   if jsonb_typeof(p_data->'rows') is distinct from 'array' or jsonb_array_length(p_data->'rows')=0 then raise exception 'No valid transactions selected';end if;
   insert into public.vietnam_bank_statements(id,bank_id,currency,file_name,storage_path,file_sha256,sheet_name,import_options,raw_rows,created_by) values(op,bid,cur,p_data->>'file_name',p_data->>'storage_path',p_data->>'file_sha256',p_data->>'sheet_name',p_data->'options',p_data->'raw_rows',u);
   for r in select value from jsonb_array_elements(p_data->'rows') loop
