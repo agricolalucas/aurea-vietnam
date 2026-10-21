@@ -28,9 +28,9 @@ do $$declare t text;begin foreach t in array array['vietnam_bank_statements','vi
  execute format('create policy bank_member_read on public.%I for select to authenticated using(exists(select 1 from public.vietnam_members where user_id=(select auth.uid())))',t);
  execute format('revoke all on public.%I from anon,authenticated',t);execute format('grant select on public.%I to authenticated',t);
 end loop;end$$;
-insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('india-bank-statements','india-bank-statements',false,20971520,array['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-excel','text/csv','application/octet-stream']);
-create policy bank_statements_read on storage.objects for select to authenticated using(bucket_id='india-bank-statements' and exists(select 1 from public.vietnam_members where user_id=(select auth.uid())));
-create policy bank_statements_upload on storage.objects for insert to authenticated with check(bucket_id='india-bank-statements' and (storage.foldername(name))[1]=(select auth.uid())::text and exists(select 1 from public.vietnam_members where user_id=(select auth.uid())));
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values('vietnam-bank-statements','vietnam-bank-statements',false,20971520,array['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','application/vnd.ms-excel','text/csv','application/octet-stream']);
+create policy bank_statements_read on storage.objects for select to authenticated using(bucket_id='vietnam-bank-statements' and exists(select 1 from public.vietnam_members where user_id=(select auth.uid())));
+create policy bank_statements_upload on storage.objects for insert to authenticated with check(bucket_id='vietnam-bank-statements' and (storage.foldername(name))[1]=(select auth.uid())::text and exists(select 1 from public.vietnam_members where user_id=(select auth.uid())));
 -- No overwrite or delete policy: original bytes remain available for audit.
 create or replace function public.vietnam_bank_system_entries(p_bank uuid,p_currency text) returns setof jsonb language sql stable security invoker set search_path='' as $$
  select x from (
@@ -50,7 +50,7 @@ begin
  if p_action='import' then
   if exists(select 1 from public.vietnam_bank_statements where id=op and bank_id=bid) then return jsonb_build_object('already_saved',true);end if;
   if exists(select 1 from public.vietnam_bank_statements where bank_id=bid and file_sha256=p_data->>'file_sha256' and sheet_name=p_data->>'sheet_name') then raise exception 'This original statement file was already imported';end if;
-  if not exists(select 1 from storage.objects where bucket_id='india-bank-statements' and name=p_data->>'storage_path' and (storage.foldername(name))[1]=u::text) then raise exception 'Original file must be uploaded before import';end if;
+  if not exists(select 1 from storage.objects where bucket_id='vietnam-bank-statements' and name=p_data->>'storage_path' and (storage.foldername(name))[1]=u::text) then raise exception 'Original file must be uploaded before import';end if;
   if jsonb_typeof(p_data->'rows') is distinct from 'array' or jsonb_array_length(p_data->'rows')=0 then raise exception 'No valid transactions selected';end if;
   insert into public.vietnam_bank_statements(id,bank_id,currency,file_name,storage_path,file_sha256,sheet_name,import_options,raw_rows,created_by) values(op,bid,cur,p_data->>'file_name',p_data->>'storage_path',p_data->>'file_sha256',p_data->>'sheet_name',p_data->'options',p_data->'raw_rows',u);
   for r in select value from jsonb_array_elements(p_data->'rows') loop
