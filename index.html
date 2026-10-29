@@ -1713,8 +1713,9 @@ document.getElementById('editSaleAddBuyer')?.addEventListener('click',addBuyerFr
     const selectedImporter=document.getElementById('shipmentImporter')?.value||d.importer||'';
     const payload={reference:(d.reference||'').trim(),cargox_number:null,acid_number:(d.acid_number||'').trim()||null,acid_expiry:d.acid_expiry||null,bill_of_lading:(d.bill_of_lading||'').trim()||null,vessel:(d.vessel||'').trim()||null,arrival_port:d.arrival_port||null,eta:d.eta||null,product:(d.product||'').trim()||null,quantity_kg:Number(d.quantity_ton||0)*1000,notes:(d.notes||'').trim()+cargoMarker+JSON.stringify(cargoItems),status:statuses,created_by:user.id};
     payload.details={exporter:selectedExporter,importer:selectedImporter,originPort:d.origin_port||'',unitPrice:Number(d.unit_price||0),totalAmount:Number(d.total_amount||0),status:statuses,tasks:document.getElementById('shipmentTasks')?.value||'',cargoItems};
-    const {error}=await db.from('shipments').insert(payload);
-    if(error){notify('Could not save: '+error.message);return;}
+    const {data:savedShipment,error}=await db.from('shipments').insert(payload).select('id,reference,details').single();
+    if(error){notify('Could not save shipment in Supabase: '+error.message);return;}
+    if(!savedShipment?.id){notify('Shipment was not confirmed by Supabase. Please retry.');return;}
     saveShipmentMeta(payload.reference,{exporter:selectedExporter,importer:selectedImporter,originPort:d.origin_port||'',unitPrice:Number(d.unit_price||0),totalAmount:Number(d.total_amount||0),status:statuses,tasks:document.getElementById('shipmentTasks')?.value||''});
     closeModal();cargoForm.reset();renderCargo(document.getElementById('newCargoLines'),[{lot:'',product:'',quantity:0,price:0}]);notify(`Shipment ${payload.reference} saved in Supabase`);await loadShipments();
   };
