@@ -720,7 +720,7 @@ body{background:linear-gradient(145deg,#f5f8f5 0%,#edf3ef 100%);letter-spacing:-
         <div class="field"><label>Lot</label><input name="lot" placeholder="e.g. SES-2609-01"></div>
         <div class="field"><label>Warehouse</label><input name="warehouse" required placeholder="e.g. Cat Lai Port Warehouse"></div>
         <div class="field"><label>Expiry</label><input name="expiry" type="date"></div>
-        <div class="field full"><label>Attach ticket</label><input name="ticketFile" type="file" accept=".pdf,.jpg,.jpeg,.png" required><span class="muted">PDF, JPG or PNG. The ticket is stored privately and linked to this shipment. Maximum 10 MB.</span></div>
+        <div class="field full"><label>Attach ticket</label><input name="ticketFile" type="file" accept=".pdf,.jpg,.jpeg,.png"><span class="muted">Optional. PDF, JPG or PNG up to 10 MB. Save the received weight now and attach the ticket later.</span></div>
         <div class="field full"><label>Notes</label><textarea name="notes" rows="2" placeholder="Optional receiving notes"></textarea></div>
       </div>
       <div class="dialog-foot"><button type="button" class="secondary receivingCancel">Cancel</button><button type="submit" class="primary">Save Received Weight & Ticket</button></div>
@@ -1183,7 +1183,7 @@ initImportStageTabs();
   document.getElementById('addReceivingTicketBtn').onclick=()=>{
     const info=getSelectedShipmentInfo();
     if(!info){notify('Select a shipment first');return;}
-    editingReceivingTicket=null;editingReceivingRef=null;const f=document.getElementById('receivingTicketForm');f.reset();f.elements.ticketFile.required=true;f.querySelector('[type="submit"]').textContent='Save Received Weight & Ticket';
+    editingReceivingTicket=null;editingReceivingRef=null;const f=document.getElementById('receivingTicketForm');f.reset();f.elements.ticketFile.required=false;f.querySelector('[type="submit"]').textContent='Save Received Weight & Ticket';
     document.getElementById('receivingShipmentLabel').textContent=`Shipment ${info.ref}`;
     toggleModal(receivingModal,true);
   };
@@ -1201,19 +1201,22 @@ initImportStageTabs();
     const fd=new FormData(form),file=fd.get('ticketFile'),weightFull=Number(fd.get('weightFull')),weightEmpty=Number(fd.get('weightEmpty'));
     if(!Number.isFinite(weightFull)||!Number.isFinite(weightEmpty)||weightFull<=weightEmpty){notify('Full weight must be greater than empty weight.');return;}
     const existing=editingReceivingTicket;
-    if(!file?.size&&!existing){notify('Attach the receiving ticket.');return;}
-    if(file?.size&&(file.size>10*1024*1024||!['application/pdf','image/jpeg','image/png'].includes(file.type))){notify('Attach a PDF, JPG or PNG of up to 10 MB.');return;}
     button.disabled=true;button.textContent='Saving…';
     try{
-      let storagePath=existing?.storagePath||'';
-      if(file?.size){storagePath=`receiving-tickets/${shipment.id}/${crypto.randomUUID()}.${file.name.split('.').pop().toLowerCase()}`;
-      const {error:uploadError}=await window.indiaDb.storage.from('vietnam-receiving-tickets').upload(storagePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;}
-      const details={...(existing||{}),ticketNo:fd.get('ticketNo'),transportName:fd.get('transportName')||'',lot:fd.get('lot')||'',warehouse:fd.get('warehouse')||'',expiry:fd.get('expiry')||'',fileName:file?.size?file.name:existing?.fileName||'',storagePath,notes:fd.get('notes')||''};
+      let storagePath=existing?.storagePath||'',fileName=existing?.fileName||'',attachmentError='';
+      if(file?.size){try{
+        if(file.size>10*1024*1024||!['application/pdf','image/jpeg','image/png'].includes(file.type))throw Error('Use a PDF, JPG or PNG of up to 10 MB.');
+        const newPath=`receiving-tickets/${shipment.id}/${crypto.randomUUID()}.${file.name.split('.').pop().toLowerCase()}`;
+        const {error:uploadError}=await window.indiaDb.storage.from('vietnam-receiving-tickets').upload(newPath,file,{contentType:file.type,upsert:false});
+        if(uploadError)throw uploadError;
+        storagePath=newPath;fileName=file.name;
+      }catch(err){attachmentError=err.message||'Upload failed';}}
+      const details={...(existing||{}),ticketNo:fd.get('ticketNo'),transportName:fd.get('transportName')||'',lot:fd.get('lot')||'',warehouse:fd.get('warehouse')||'',expiry:fd.get('expiry')||'',fileName,storagePath,notes:fd.get('notes')||''};
       const payload={shipment_id:shipment.id,shipment_reference:info.ref,ticket_date:fd.get('date'),container_number:fd.get('container'),gross_weight_kg:weightFull,tare_weight_kg:weightEmpty,received_weight_kg:weightFull-weightEmpty,details};
       const query=existing?window.indiaDb.from('vietnam_receiving_tickets').update(payload).eq('id',existing.id):window.indiaDb.from('vietnam_receiving_tickets').insert(payload);
       const {data,error}=await query.select().single();if(error)throw error;
       receivingCache.set(info.ref,existing?getReceivingTickets(info.ref).map(t=>t.id===existing.id?ticketFromDb(data):t):[...getReceivingTickets(info.ref),ticketFromDb(data)]);editingReceivingTicket=null;
-      form.reset();toggleModal(receivingModal,false);renderReceivingTickets();renderInventory();notify(`Received weight saved for ${info.ref}`);
+      form.reset();toggleModal(receivingModal,false);renderReceivingTickets();renderInventory();notify(attachmentError?`Received weight saved for ${info.ref}. Attachment not uploaded: ${attachmentError}. You can attach it later.`:`Received weight saved for ${info.ref}`);
     }catch(err){notify('Could not save receiving ticket: '+err.message);}finally{button.disabled=false;button.textContent='Save Received Weight & Ticket';}
   };
   document.querySelector('#receivingTicketTable tbody').onchange=async e=>{
