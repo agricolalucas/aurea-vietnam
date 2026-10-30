@@ -1207,7 +1207,7 @@ initImportStageTabs();
     try{
       let storagePath=existing?.storagePath||'';
       if(file?.size){storagePath=`receiving-tickets/${shipment.id}/${crypto.randomUUID()}.${file.name.split('.').pop().toLowerCase()}`;
-      const {error:uploadError}=await window.indiaDb.storage.from('india-profile-documents').upload(storagePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;}
+      const {error:uploadError}=await window.indiaDb.storage.from('vietnam-receiving-tickets').upload(storagePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;}
       const details={...(existing||{}),ticketNo:fd.get('ticketNo'),transportName:fd.get('transportName')||'',lot:fd.get('lot')||'',warehouse:fd.get('warehouse')||'',expiry:fd.get('expiry')||'',fileName:file?.size?file.name:existing?.fileName||'',storagePath,notes:fd.get('notes')||''};
       const payload={shipment_id:shipment.id,shipment_reference:info.ref,ticket_date:fd.get('date'),container_number:fd.get('container'),gross_weight_kg:weightFull,tare_weight_kg:weightEmpty,received_weight_kg:weightFull-weightEmpty,details};
       const query=existing?window.indiaDb.from('vietnam_receiving_tickets').update(payload).eq('id',existing.id):window.indiaDb.from('vietnam_receiving_tickets').insert(payload);
@@ -1222,7 +1222,7 @@ initImportStageTabs();
     if(file.size>10*1024*1024||!['application/pdf','image/jpeg','image/png'].includes(file.type)){notify('Attach a PDF, JPG or PNG of up to 10 MB.');return;}
     input.disabled=true;
     try{const storagePath=`receiving-tickets/${t.id}/${crypto.randomUUID()}.${file.name.split('.').pop().toLowerCase()}`;
-      const {error:uploadError}=await window.indiaDb.storage.from('india-profile-documents').upload(storagePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;
+      const {error:uploadError}=await window.indiaDb.storage.from('vietnam-receiving-tickets').upload(storagePath,file,{contentType:file.type,upsert:false});if(uploadError)throw uploadError;
       const details={...t,fileName:file.name,storagePath};const {data,error}=await window.indiaDb.from('vietnam_receiving_tickets').update({details}).eq('id',t.id).select().single();if(error)throw error;
       tickets[Number(input.dataset.index)]=ticketFromDb(data);renderReceivingTickets();notify('Ticket attachment saved');
     }catch(err){notify('Could not attach ticket: '+err.message);}finally{input.disabled=false;}
@@ -1232,7 +1232,7 @@ initImportStageTabs();
     const edit=e.target.closest('.edit-receiving-ticket');
     if(edit){const t=getReceivingTickets(info.ref)[Number(edit.dataset.index)];if(!t?.id)return;editingReceivingTicket=t;editingReceivingRef=info.ref;const f=document.getElementById('receivingTicketForm');f.reset();for(const k of ['date','container','ticketNo','weightFull','weightEmpty','weight','transportName','lot','warehouse','expiry','notes'])f.elements[k].value=t[k]??'';f.elements.ticketFile.required=false;f.querySelector('[type="submit"]').textContent='Save changes';document.getElementById('receivingShipmentLabel').textContent=`Edit ticket ${t.ticketNo||''} · ${info.ref}`;toggleModal(receivingModal,true);return;}
     const open=e.target.closest('.open-receiving-ticket');
-    if(open){const t=getReceivingTickets(info.ref)[Number(open.dataset.index)];const {data,error}=await window.indiaDb.storage.from('india-profile-documents').createSignedUrl(t.storagePath,60);if(error){notify('Could not open ticket: '+error.message);return;}window.open(data.signedUrl,'_blank','noopener');return;}
+    if(open){const t=getReceivingTickets(info.ref)[Number(open.dataset.index)];const {data,error}=await window.indiaDb.storage.from('vietnam-receiving-tickets').createSignedUrl(t.storagePath,60);if(error){notify('Could not open ticket: '+error.message);return;}window.open(data.signedUrl,'_blank','noopener');return;}
     const btn=e.target.closest('.delete-receiving-ticket');if(!btn)return;
     const tickets=getReceivingTickets(info.ref),ticket=tickets[Number(btn.dataset.index)];if(!ticket?.id)return;
     if(!confirm('Delete this receiving ticket for all users?'))return;
