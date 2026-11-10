@@ -692,6 +692,10 @@ body{background:linear-gradient(145deg,#f5f8f5 0%,#edf3ef 100%);letter-spacing:-
       <div class="field"><label>Unit Price / kg</label><input name="unitPrice" required type="number" min="0" step="0.01" placeholder="0.00"></div>
       <div class="field"><label>Shipment / Lot</label><input name="reference" id="saleReference" required readonly placeholder="Shipment reference"></div>
       <div class="field"><label>Available After Sale</label><input id="availableAfter" readonly placeholder="Calculated automatically"></div>
+      <div id="saleStockNotice" style="grid-column:1/-1" hidden>
+        <span id="saleStockMessage" role="status"></span>
+        <button type="button" class="mini-btn" id="saleExistingInvoice" hidden></button>
+      </div>
     </div>
   </div>
 </div>
@@ -1400,7 +1404,7 @@ function nextIndiaInvoiceNumber(){
  for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k?.startsWith('sale:'))consider(k.slice(5))}
  return prefix+(last+1);
 }
-function openSale(){document.querySelector('#saleForm [data-extra-items]').replaceChildren();refreshSalesTotals(document.getElementById('saleForm'));window.indiaInvoice.fillSeller(document.getElementById('saleForm'));window.indiaInvoice.fillBank(document.getElementById('saleForm'));document.querySelector('#saleForm [name="invoice"]').value=nextIndiaInvoiceNumber();fillBuyerSelect(document.getElementById('buyerSearch'));toggleModal(saleModal,true);document.querySelector('#saleForm [name="date"]').value=new Date().toISOString().slice(0,10)}
+function openSale(){document.querySelector('#saleForm [data-extra-items]').replaceChildren();updateSaleStock();refreshSalesTotals(document.getElementById('saleForm'));window.indiaInvoice.fillSeller(document.getElementById('saleForm'));window.indiaInvoice.fillBank(document.getElementById('saleForm'));document.querySelector('#saleForm [name="invoice"]').value=nextIndiaInvoiceNumber();fillBuyerSelect(document.getElementById('buyerSearch'));toggleModal(saleModal,true);document.querySelector('#saleForm [name="date"]').value=new Date().toISOString().slice(0,10)}
 document.getElementById('saleBtn').onclick=openSale;
 document.querySelector('.saleClose').onclick=document.querySelector('.saleCancel').onclick=()=>toggleModal(saleModal,false);
 function addBuyerFromSales(){
@@ -1448,7 +1452,31 @@ document.getElementById('editSaleAddBuyer')?.addEventListener('click',addBuyerFr
     document.getElementById('saleReference').value=stock?.reference||'';
     document.querySelector('#saleForm [name=hsn]').value=window.indiaInvoice.shipmentHs(stock?.reference||'');
     document.getElementById('availableAfter').value=stock?`${Math.max(0,stock.available-qty).toLocaleString('en-US')} kg`:'';
-    document.getElementById('saleQuantity').max=stock?.available||'';
+    document.getElementById('saleQuantity').max=stock?.available??'';
+    const notice=document.getElementById('saleStockNotice');
+    const existingButton=document.getElementById('saleExistingInvoice');
+    notice.hidden=!stock||qty<=stock.available;
+    existingButton.hidden=true;
+    existingButton.onclick=null;
+    if(notice.hidden)return;
+
+    const matches=[...document.querySelectorAll('#salesTable tbody tr[data-invoice]')].filter(row=>
+      row.dataset.cancelled!=='true'&&invoiceItems(row.dataset).some(item=>
+        item.reference===stock.reference&&Number(item.quantity)===qty
+      )
+    );
+    const message=document.getElementById('saleStockMessage');
+    message.textContent=`Only ${fmtKg(stock.available)} are available for a new sale.`;
+    if(matches.length===1){
+      const row=matches[0];
+      message.textContent+=` Invoice ${row.dataset.invoice} already includes ${fmtKg(qty)} for ${stock.reference}.`;
+      existingButton.textContent=`Edit invoice ${row.dataset.invoice}`;
+      existingButton.hidden=false;
+      existingButton.onclick=()=>{
+        toggleModal(saleModal,false);
+        openEditSale(row);
+      };
+    }
   }
   document.getElementById('saleLot').onchange=updateSaleStock;
   document.getElementById('saleQuantity').oninput=updateSaleStock;
